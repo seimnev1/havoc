@@ -772,6 +772,72 @@ end
 end)
 return lines
 end
+local RS = game:GetService(string.char(82, 101, 112, 108, 105, 99, 97, 116, 101, 100, 83, 116, 111, 114, 97, 103, 101))
+local TIER_COLORS_INV = {
+mythic      = Color3.fromRGB(255, 60,  60),
+rare        = Color3.fromRGB(180, 60, 255),
+keys        = Color3.fromRGB(255,230,  50),
+usable      = Color3.fromRGB( 60,210, 210),
+uncommon    = Color3.fromRGB( 80,200,  80),
+cash        = Color3.fromRGB(100,255, 100),
+gear_rare   = Color3.fromRGB(220, 80, 255),
+gear_common = Color3.fromRGB(180,130, 255),
+}
+local DEFAULT_INV_COL = Color3.fromRGB(200,200,200)
+local function getItemColor(name)
+local tier = ITEM_TIER[name]
+return (tier and TIER_COLORS_INV[tier]) or DEFAULT_INV_COL
+end
+local function getNPCBackpackLines(charModel)
+local storage = RS:FindFirstChild(string.char(95, 95, 116, 101, 109, 112, 83, 84, 79, 82, 65, 71, 69))
+if not storage then return nil end
+local backpacks = storage:FindFirstChild(string.char(110, 112, 99, 95, 98, 97, 99, 107, 112, 97, 99, 107, 115))
+if not backpacks then return nil end
+local charName = charModel.Name
+local bpLink = charModel:FindFirstChild(string.char(98, 97, 99, 107, 112, 97, 99, 107, 70, 111, 108, 100, 101, 114))
+or charModel:FindFirstChild(string.char(98, 97, 99, 107, 112, 97, 99, 107))
+or charModel:FindFirstChild(string.char(66, 97, 99, 107, 112, 97, 99, 107))
+local targetBp = nil
+if bpLink and bpLink:IsA(string.char(79, 98, 106, 101, 99, 116, 86, 97, 108, 117, 101)) then
+targetBp = bpLink.Value
+else
+local ok, bps = pcall(function() return backpacks:GetChildren() end)
+if ok and bps then
+for _, bp in ipairs(bps) do
+local owner = bp:FindFirstChild(string.char(111, 119, 110, 101, 114)) or bp:FindFirstChild(string.char(79, 119, 110, 101, 114))
+if owner and owner:IsA(string.char(79, 98, 106, 101, 99, 116, 86, 97, 108, 117, 101)) and owner.Value == charModel then
+targetBp = bp; break
+end
+local nameVal = bp:FindFirstChild(string.char(110, 97, 109, 101)) or bp:FindFirstChild(string.char(99, 104, 97, 114, 97, 99, 116, 101, 114, 78, 97, 109, 101))
+if nameVal and nameVal.Value == charName then
+targetBp = bp; break
+end
+end
+end
+end
+if not targetBp then return nil end
+local itemsFolder = targetBp:FindFirstChild(string.char(105, 116, 101, 109, 115))
+if not itemsFolder then return nil end
+local lines = {}
+local ok, kids = pcall(function() return itemsFolder:GetChildren() end)
+if not ok or not kids then return nil end
+local itemCounts = {}
+for _, item in ipairs(kids) do
+local n = item.Name
+itemCounts[n] = (itemCounts[n] or 0) + 1
+end
+local seen = {}
+for _, item in ipairs(kids) do
+local n = item.Name
+if not seen[n] then
+seen[n] = true
+local count = itemCounts[n]
+local label = count > 1 and (n .. string.char(32, 120)..count) or n
+lines[#lines+1] = { text=string.char(32, 32, 124, 45, 32)..label, color=getItemColor(n) }
+end
+end
+return lines
+end
 local function collectInventory(charModel,plrRef,plrName)
 local sections={}
 local plr=plrRef
@@ -1033,8 +1099,28 @@ end
 end
 scan(itemsF,function(n) return itemColor(n) end,function(n) return CFG.selectedItems[n]==true end)
 if CFG.showCrates and cratesF then
-scan(cratesF,function(n) return crateColors[n] or Color3.fromRGB(200,200,200) end,
-function(n) return CFG.selectedCrates[n]==true end)
+local ok,kids=pcall(function() return cratesF:GetChildren() end)
+if ok and kids then
+for _,obj in ipairs(kids) do
+if CFG.selectedCrates[obj.Name] then
+local root=obj:FindFirstChildWhichIsA(string.char(66, 97, 115, 101, 80, 97, 114, 116))
+if root and root.Parent then
+local rp=root.Position
+local dx=rp.X-myPos.X; local dy=rp.Y-myPos.Y; local dz=rp.Z-myPos.Z
+if dx*dx+dy*dy+dz*dz<=maxDSq then
+local data=obj:FindFirstChild(string.char(100, 97, 116, 97))
+local luckVal=data and data:FindFirstChild(string.char(108, 117, 99, 107))
+out[#out+1]={
+part=root,
+name=obj.Name,
+color=crateColors[obj.Name] or Color3.fromRGB(200,200,200),
+luckRef=luckVal,
+}
+end
+end
+end
+end
+end
 end
 lootObjects=out
 end
@@ -1152,7 +1238,13 @@ local rp=part.Position
 local dx=rp.X-myPos.X; local dy=rp.Y-myPos.Y; local dz=rp.Z-myPos.Z
 local dist=floor(sqrt(dx*dx+dy*dy+dz*dz))
 local lbl=lootLabels[drawn]; local dot=lootDots[drawn]
-lbl.Text=e.name..string.char(32, 91)..dist..string.char(109, 93); lbl.Color=e.color
+local txt
+if e.luckRef and e.luckRef.Parent then
+txt=e.name..string.char(32, 91, 108, 117, 99, 107, 58)..floor(e.luckRef.Value)..string.char(93, 32, 91)..dist..string.char(109, 93)
+else
+txt=e.name..string.char(32, 91)..dist..string.char(109, 93)
+end
+lbl.Text=txt; lbl.Color=e.color
 lbl.Position=Vector2.new(sc.X,sc.Y-10); lbl.Visible=true
 dot.Color=e.color; dot.Position=Vector2.new(sc.X,sc.Y+6); dot.Visible=true
 end
@@ -1289,6 +1381,31 @@ else
 label=string.char(91, 78, 80, 67, 93, 32)..found.label
 end
 if found.char and found.char.Parent then
+if not found.isPlayer then
+local bpLines = pcall and (function()
+local ok, lines = pcall(getNPCBackpackLines, found.char)
+return ok and lines or nil
+end)()
+if bpLines and #bpLines > 0 then
+invCurrentLines = {
+{text=label, color=Color3.fromRGB(255,80,80)},
+{text=string.char(91, 66, 97, 99, 107, 112, 97, 99, 107, 32, 80, 114, 101, 118, 105, 101, 119, 93), color=Color3.fromRGB(255,200,60)},
+}
+for _, l in ipairs(bpLines) do
+invCurrentLines[#invCurrentLines+1] = l
+end
+else
+local ok,secs=pcall(collectInventory,found.char,found.plr,found.label)
+if ok and secs then
+invCurrentLines=buildLines(label,secs)
+else
+invCurrentLines={
+{text=label,color=Color3.fromRGB(255,80,80)},
+{text=string.char(32, 32, 40, 110, 111, 32, 98, 97, 99, 107, 112, 97, 99, 107, 32, 100, 97, 116, 97, 41),color=Color3.fromRGB(120,120,120)}
+}
+end
+end
+else
 local ok,secs=pcall(collectInventory,found.char,found.plr,found.label)
 if ok and secs then
 invCurrentLines=buildLines(label,secs)
@@ -1297,6 +1414,7 @@ invCurrentLines={
 {text=label,color=Color3.fromRGB(80,220,255)},
 {text=string.char(32, 32, 40, 114, 101, 97, 100, 32, 101, 114, 114, 111, 114, 41),color=Color3.fromRGB(180,60,60)}
 }
+end
 end
 end
 end
