@@ -5,10 +5,12 @@ subtitle = string.char(118, 50),
 size     = Vector2.new(580, 460),
 })
 win:AddSettingsTab(string.char(99, 111, 103))
-local Players    = game:GetService(string.char(80, 108, 97, 121, 101, 114, 115))
-local RunService = game:GetService(string.char(82, 117, 110, 83, 101, 114, 118, 105, 99, 101))
-local Camera     = workspace.CurrentCamera
-local LocalPlayer= Players.LocalPlayer
+local Players     = game:GetService(string.char(80, 108, 97, 121, 101, 114, 115))
+local RunService  = game:GetService(string.char(82, 117, 110, 83, 101, 114, 118, 105, 99, 101))
+local HttpService = game:GetService(string.char(72, 116, 116, 112, 83, 101, 114, 118, 105, 99, 101))
+local Lighting    = game:GetService(string.char(76, 105, 103, 104, 116, 105, 110, 103))
+local Camera      = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
 local floor = math.floor
 local clamp = math.clamp
 local sqrt  = math.sqrt
@@ -232,8 +234,6 @@ showHealth=true, showName=true, showDist=true, showWeapon=true,
 sentryEnabled=false, corpseEnabled=false, sliderEnabled=false,
 hazardDist=500,
 invEnabled=true, invHoverRadius=150,
-invHoldMode=false,
-invKeyType=string.char(107, 101, 121), invKeyCode=0x49, invKeyName=string.char(73),
 invPanelX=10, invPanelY=30,
 }
 local TIER_SHOW = {
@@ -251,6 +251,81 @@ local function tierVisible(name)
 local t=ITEM_TIER[name]; local fn=t and TIER_SHOW[t]
 return fn and fn() or false
 end
+local OFF = {}
+do
+local _raw = {}
+pcall(function()
+local res = game:HttpGet(string.char(104, 116, 116, 112, 115, 58, 47, 47, 111, 102, 102, 115, 101, 116, 115, 46, 105, 109, 116, 104, 101, 111, 46, 108, 111, 108, 47, 79, 102, 102, 115, 101, 116, 115, 46, 106, 115, 111, 110))
+_raw = (HttpService:JSONDecode(res) or {}).Offsets or {}
+end)
+local function o(sec, key, fb)
+local s = _raw[sec]; return (s and s[key]) or fb
+end
+OFF.FOG_END      = o(string.char(76, 105, 103, 104, 116, 105, 110, 103),   string.char(70, 111, 103, 69, 110, 100),   0x13C)
+OFF.FOG_START    = o(string.char(76, 105, 103, 104, 116, 105, 110, 103),   string.char(70, 111, 103, 83, 116, 97, 114, 116), 0x140)
+OFF.ATMO_DENSITY = o(string.char(65, 116, 109, 111, 115, 112, 104, 101, 114, 101), string.char(68, 101, 110, 115, 105, 116, 121),  0x0E8)
+OFF.ATMO_GLARE   = o(string.char(65, 116, 109, 111, 115, 112, 104, 101, 114, 101), string.char(71, 108, 97, 114, 101),    0x0EC)
+OFF.ATMO_HAZE    = o(string.char(65, 116, 109, 111, 115, 112, 104, 101, 114, 101), string.char(72, 97, 122, 101),     0x0F0)
+OFF.ATMO_OFFSET  = o(string.char(65, 116, 109, 111, 115, 112, 104, 101, 114, 101), string.char(79, 102, 102, 115, 101, 116),   0x0F4)
+end
+local FOG = {
+lightingAddr=0, atmoAddr=0,
+origEnd=100000, origStart=0,
+origDensity=0.3, origGlare=0, origHaze=0, origOffset=0.25,
+captured=false, enabled=false, last=false,
+}
+local function captureFog()
+FOG.captured = true
+pcall(function() FOG.lightingAddr = Lighting.Address or 0 end)
+pcall(function() FOG.origEnd = Lighting.FogEnd; FOG.origStart = Lighting.FogStart end)
+local atmo = Lighting:FindFirstChildOfClass(string.char(65, 116, 109, 111, 115, 112, 104, 101, 114, 101))
+if atmo then
+pcall(function() FOG.atmoAddr = atmo.Address or 0 end)
+pcall(function()
+FOG.origDensity = atmo.Density; FOG.origGlare  = atmo.Glare
+FOG.origHaze    = atmo.Haze;    FOG.origOffset = atmo.Offset
+end)
+end
+end
+local function applyNoFog()
+if not FOG.captured then captureFog() end
+if not memory_write then return end
+if FOG.lightingAddr ~= 0 then
+memory_write(string.char(102, 108, 111, 97, 116), FOG.lightingAddr + OFF.FOG_END,   9e8)
+memory_write(string.char(102, 108, 111, 97, 116), FOG.lightingAddr + OFF.FOG_START, 9e8)
+end
+if FOG.atmoAddr ~= 0 then
+memory_write(string.char(102, 108, 111, 97, 116), FOG.atmoAddr + OFF.ATMO_DENSITY, 0)
+memory_write(string.char(102, 108, 111, 97, 116), FOG.atmoAddr + OFF.ATMO_GLARE,   0)
+memory_write(string.char(102, 108, 111, 97, 116), FOG.atmoAddr + OFF.ATMO_HAZE,    0)
+memory_write(string.char(102, 108, 111, 97, 116), FOG.atmoAddr + OFF.ATMO_OFFSET,  0)
+end
+end
+local function restoreFog()
+if not FOG.captured or not memory_write then return end
+if FOG.lightingAddr ~= 0 then
+memory_write(string.char(102, 108, 111, 97, 116), FOG.lightingAddr + OFF.FOG_END,   FOG.origEnd)
+memory_write(string.char(102, 108, 111, 97, 116), FOG.lightingAddr + OFF.FOG_START, FOG.origStart)
+end
+if FOG.atmoAddr ~= 0 then
+memory_write(string.char(102, 108, 111, 97, 116), FOG.atmoAddr + OFF.ATMO_DENSITY, FOG.origDensity)
+memory_write(string.char(102, 108, 111, 97, 116), FOG.atmoAddr + OFF.ATMO_GLARE,   FOG.origGlare)
+memory_write(string.char(102, 108, 111, 97, 116), FOG.atmoAddr + OFF.ATMO_HAZE,    FOG.origHaze)
+memory_write(string.char(102, 108, 111, 97, 116), FOG.atmoAddr + OFF.ATMO_OFFSET,  FOG.origOffset)
+end
+end
+local fogTimer = 0
+RunService.Heartbeat:Connect(function(dt)
+fogTimer = fogTimer + dt
+if fogTimer < 0.1 then return end
+fogTimer = 0
+if FOG.enabled then
+applyNoFog()
+elseif FOG.last then
+restoreFog()
+end
+FOG.last = FOG.enabled
+end)
 local RECOIL = {
 enabled=false, cache=nil,
 payload={
@@ -325,26 +400,7 @@ local VK_NAMES = {
 [0x70]=string.char(70, 49),[0x71]=string.char(70, 50),[0x72]=string.char(70, 51),[0x73]=string.char(70, 52),[0x74]=string.char(70, 53),[0x75]=string.char(70, 54),
 [0x76]=string.char(70, 55),[0x77]=string.char(70, 56),[0x78]=string.char(70, 57),[0x79]=string.char(70, 49, 48),[0x7A]=string.char(70, 49, 49),[0x7B]=string.char(70, 49, 50),
 }
-local function detectKey()
-if ismouse1pressed() then return string.char(109, 111, 117, 115, 101, 49),nil,string.char(77, 66, 49) end
-if ismouse2pressed() then return string.char(109, 111, 117, 115, 101, 50),nil,string.char(77, 66, 50) end
-for vk=0x03,0xFE do
-if vk~=0x01 and vk~=0x02 and iskeypressed(vk) then
-return string.char(107, 101, 121),vk,(VK_NAMES[vk] or string.format(string.char(48, 120, 37, 48, 50, 88),vk))
-end
-end
-end
-local function aimKeyDown()
-if AIM.keyType==string.char(109, 111, 117, 115, 101, 49) then return ismouse1pressed()
-elseif AIM.keyType==string.char(109, 111, 117, 115, 101, 50) then return ismouse2pressed()
-elseif AIM.keyType==string.char(107, 101, 121) then
-if AIM.keyCode then return iskeypressed(AIM.keyCode) end
-for vk,name in pairs(VK_NAMES) do
-if name:lower()==AIM.keyName:lower() then return iskeypressed(vk) end
-end
-end
-return false
-end
+local entObjects = {}
 local _prevPos,_prevTime={},{}
 local function getBoneVel(bone)
 local now=tick(); local cur=bone.Position
@@ -355,7 +411,6 @@ local dt=now-pt
 if dt<=0 or dt>0.5 then return Vector3.new(0,0,0) end
 return (cur-prev)/dt
 end
-local entObjects={}
 local function getNearestTarget()
 local char=LocalPlayer and LocalPlayer.Character
 if not char then return nil end
@@ -387,7 +442,7 @@ local vp=Camera.ViewportSize
 fovCircle.Position=Vector2.new(vp.X*0.5,vp.Y*0.5)
 fovCircle.Radius=AIM.fov; fovCircle.Visible=true
 else fovCircle.Visible=false end
-local keyDown = false
+local keyDown=false
 if AIM.keyType==string.char(109, 111, 117, 115, 101, 49) then keyDown=ismouse1pressed()
 elseif AIM.keyType==string.char(109, 111, 117, 115, 101, 50) then keyDown=ismouse2pressed()
 elseif AIM.keyType==string.char(109, 111, 117, 115, 101, 51) then pcall(function() keyDown=iskeypressed(0x04) end)
@@ -413,36 +468,25 @@ end
 local combatTab  = win:Tab(string.char(67, 111, 109, 98, 97, 116),string.char(115, 119, 111, 114, 100, 115))
 local aimSec     = combatTab:Section(string.char(65, 105, 109, 98, 111, 116),string.char(76, 101, 102, 116))
 local weaponSec  = combatTab:Section(string.char(87, 101, 97, 112, 111, 110),string.char(82, 105, 103, 104, 116))
-AIM.enabled = false
-aimSec:Toggle(string.char(69, 110, 97, 98, 108, 101, 32, 65, 105, 109, 98, 111, 116), false, function(v)
-AIM.enabled = v
-if not v then fovCircle.Visible = false end
+aimSec:Toggle(string.char(69, 110, 97, 98, 108, 101, 32, 65, 105, 109, 98, 111, 116),false,function(v)
+AIM.enabled=v
+if not v then fovCircle.Visible=false end
 end)
-AIM.keyType = string.char(109, 111, 117, 115, 101, 50)
-AIM.keyCode = nil
-AIM.keyName = string.char(77, 66, 50)
-AIM.listening = false
-aimSec:Keybind(string.char(65, 105, 109, 98, 111, 116, 32, 75, 101, 121), string.char(109, 111, 117, 115, 101, 50), function(key)
+aimSec:Keybind(string.char(65, 105, 109, 98, 111, 116, 32, 75, 101, 121),string.char(109, 111, 117, 115, 101, 50),function(key)
 if not key then return end
-local k = tostring(key):lower()
-AIM.keyName = tostring(key)
-if k==string.char(109, 111, 117, 115, 101, 49) or k==string.char(109, 98, 49) or k==string.char(108, 101, 102, 116, 98, 117, 116, 116, 111, 110) then
-AIM.keyType=string.char(109, 111, 117, 115, 101, 49); AIM.keyCode=nil
-elseif k==string.char(109, 111, 117, 115, 101, 50) or k==string.char(109, 98, 50) or k==string.char(114, 105, 103, 104, 116, 98, 117, 116, 116, 111, 110) then
-AIM.keyType=string.char(109, 111, 117, 115, 101, 50); AIM.keyCode=nil
-elseif k==string.char(109, 111, 117, 115, 101, 51) or k==string.char(109, 98, 51) or k==string.char(109, 105, 100, 100, 108, 101, 98, 117, 116, 116, 111, 110) then
-AIM.keyType=string.char(109, 111, 117, 115, 101, 51); AIM.keyCode=nil
-elseif k==string.char(109, 111, 117, 115, 101, 52) or k==string.char(109, 98, 52) then
-AIM.keyType=string.char(109, 111, 117, 115, 101, 52); AIM.keyCode=nil
-elseif k==string.char(109, 111, 117, 115, 101, 53) or k==string.char(109, 98, 53) then
-AIM.keyType=string.char(109, 111, 117, 115, 101, 53); AIM.keyCode=nil
+local k=tostring(key):lower()
+AIM.keyName=tostring(key)
+if k==string.char(109, 111, 117, 115, 101, 49) or k==string.char(109, 98, 49) or k==string.char(108, 101, 102, 116, 98, 117, 116, 116, 111, 110) then AIM.keyType=string.char(109, 111, 117, 115, 101, 49); AIM.keyCode=nil
+elseif k==string.char(109, 111, 117, 115, 101, 50) or k==string.char(109, 98, 50) or k==string.char(114, 105, 103, 104, 116, 98, 117, 116, 116, 111, 110) then AIM.keyType=string.char(109, 111, 117, 115, 101, 50); AIM.keyCode=nil
+elseif k==string.char(109, 111, 117, 115, 101, 51) or k==string.char(109, 98, 51) or k==string.char(109, 105, 100, 100, 108, 101, 98, 117, 116, 116, 111, 110) then AIM.keyType=string.char(109, 111, 117, 115, 101, 51); AIM.keyCode=nil
+elseif k==string.char(109, 111, 117, 115, 101, 52) or k==string.char(109, 98, 52) then AIM.keyType=string.char(109, 111, 117, 115, 101, 52); AIM.keyCode=nil
+elseif k==string.char(109, 111, 117, 115, 101, 53) or k==string.char(109, 98, 53) then AIM.keyType=string.char(109, 111, 117, 115, 101, 53); AIM.keyCode=nil
 else
 AIM.keyType=string.char(107, 101, 121)
 for vk,name in pairs(VK_NAMES) do
 if name:lower()==k then AIM.keyCode=vk; break end
 end
 end
-print(string.char(91, 65, 105, 109, 98, 111, 116, 93, 32, 75, 101, 121, 32, 115, 101, 116, 32, 116, 111, 58, 32)..AIM.keyType..string.char(32, 114, 97, 119, 61, 91)..k..string.char(93))
 end)
 aimSec:Toggle(string.char(83, 104, 111, 119, 32, 70, 79, 86, 32, 67, 105, 114, 99, 108, 101),false,function(v) AIM.showFOV=v; if not v then fovCircle.Visible=false end end)
 aimSec:Slider(string.char(70, 79, 86, 32, 82, 97, 100, 105, 117, 115),150,10,10,500,string.char(112, 120),function(v) AIM.fov=v; fovCircle.Radius=v end)
@@ -467,6 +511,11 @@ RECOIL.cache=ok and cache or nil
 end)
 else RECOIL.cache=nil end
 end)
+weaponSec:Divider(string.char(69, 110, 118, 105, 114, 111, 110, 109, 101, 110, 116))
+weaponSec:Toggle(string.char(78, 111, 32, 70, 111, 103),false,function(v)
+FOG.enabled=v
+if not v then restoreFog() end
+end)
 weaponSec:Divider(string.char(76, 111, 111, 116))
 weaponSec:Toggle(string.char(73, 110, 115, 116, 97, 110, 116, 32, 76, 111, 111, 116),false,function(v)
 INSTANT_LOOT.enabled=v
@@ -488,12 +537,11 @@ local lootTab  = win:Tab(string.char(76, 111, 111, 116, 32, 69, 83, 80),string.c
 local lootSecL = lootTab:Section(string.char(73, 116, 101, 109, 115),string.char(76, 101, 102, 116))
 local lootSecR = lootTab:Section(string.char(83, 101, 116, 116, 105, 110, 103, 115),string.char(82, 105, 103, 104, 116))
 local function buildTierList(tier)
-local out = {}
-for name, t in pairs(ITEM_TIER) do
-if t == tier then out[#out+1] = name end
+local out={}
+for name,t in pairs(ITEM_TIER) do
+if t==tier then out[#out+1]=name end
 end
-table.sort(out)
-return out
+table.sort(out); return out
 end
 local LIST_MYTHIC   = buildTierList(string.char(109, 121, 116, 104, 105, 99))
 local LIST_RARE     = buildTierList(string.char(114, 97, 114, 101))
@@ -508,20 +556,17 @@ end)()
 local LIST_UNCOMMON = buildTierList(string.char(117, 110, 99, 111, 109, 109, 111, 110))
 local LIST_USABLE   = buildTierList(string.char(117, 115, 97, 98, 108, 101))
 local LIST_COMMON   = buildTierList(string.char(99, 111, 109, 109, 111, 110))
-CFG.selectedItems = {}
-local _tierSelections = {}
+CFG.selectedItems={}
+local _tierSelections={}
 local function rebuildSelectedItems()
-local t = {}
-for _, sel in pairs(_tierSelections) do
-for _, v in ipairs(sel) do t[v] = true end
+local t={}
+for _,sel in pairs(_tierSelections) do
+for _,v in ipairs(sel) do t[v]=true end
 end
-CFG.selectedItems = t
+CFG.selectedItems=t
 end
 local function makeTierCb(key)
-return function(sel)
-_tierSelections[key] = sel
-rebuildSelectedItems()
-end
+return function(sel) _tierSelections[key]=sel; rebuildSelectedItems() end
 end
 lootSecL:Toggle(string.char(69, 110, 97, 98, 108, 101, 32, 76, 111, 111, 116, 32, 69, 83, 80),false,function(v) CFG.lootEnabled=v end)
 lootSecL:Divider(string.char(77, 121, 116, 104, 105, 99))
@@ -547,35 +592,6 @@ lootSecR:Slider(string.char(77, 97, 120, 32, 68, 105, 115, 116, 97, 110, 99, 101
 local invTab  = win:Tab(string.char(73, 110, 118, 101, 110, 116, 111, 114, 121),string.char(112, 97, 99, 107, 97, 103, 101))
 local invSecL = invTab:Section(string.char(83, 101, 116, 116, 105, 110, 103, 115),string.char(76, 101, 102, 116))
 invSecL:Toggle(string.char(69, 110, 97, 98, 108, 101, 32, 73, 110, 118, 101, 110, 116, 111, 114, 121, 32, 86, 105, 101, 119, 101, 114),true,function(v) CFG.invEnabled=v end)
-invSecL:Toggle(string.char(72, 111, 108, 100, 32, 75, 101, 121, 32, 116, 111, 32, 86, 105, 101, 119),false,function(v) CFG.invHoldMode=v end)
-local invKeyBtn
-invKeyBtn = invSecL:Button(string.char(86, 105, 101, 119, 32, 75, 101, 121, 58, 32, 73), function()
-invKeyBtn:SetText(string.char(80, 114, 101, 115, 115, 32, 97, 110, 121, 32, 107, 101, 121, 46, 46, 46))
-local listening = true
-spawn(function()
-wait(0.25)
-local deadline = tick() + 5
-while tick() < deadline do
-if ismouse1pressed() then
-CFG.invKeyType=string.char(109, 111, 117, 115, 101, 49); CFG.invKeyCode=nil; CFG.invKeyName=string.char(77, 66, 49)
-invKeyBtn:SetText(string.char(86, 105, 101, 119, 32, 75, 101, 121, 58, 32, 77, 66, 49)); return
-elseif ismouse2pressed() then
-CFG.invKeyType=string.char(109, 111, 117, 115, 101, 50); CFG.invKeyCode=nil; CFG.invKeyName=string.char(77, 66, 50)
-invKeyBtn:SetText(string.char(86, 105, 101, 119, 32, 75, 101, 121, 58, 32, 77, 66, 50)); return
-else
-for vk=0x08,0xFE do
-if iskeypressed(vk) then
-local name=VK_NAMES[vk] or string.format(string.char(48, 120, 37, 48, 50, 88),vk)
-CFG.invKeyType=string.char(107, 101, 121); CFG.invKeyCode=vk; CFG.invKeyName=name
-invKeyBtn:SetText(string.char(86, 105, 101, 119, 32, 75, 101, 121, 58, 32)..name); return
-end
-end
-end
-wait(0.02)
-end
-invKeyBtn:SetText(string.char(86, 105, 101, 119, 32, 75, 101, 121, 58, 32)..CFG.invKeyName)
-end)
-end)
 invSecL:Slider(string.char(72, 111, 118, 101, 114, 32, 82, 97, 100, 105, 117, 115, 32, 112, 120),150,10,20,300,string.char(112, 120),function(v) CFG.invHoverRadius=v end)
 invSecL:Slider(string.char(80, 97, 110, 101, 108, 32, 88),10,5,0,800,"",function(v) CFG.invPanelX=v end)
 invSecL:Slider(string.char(80, 97, 110, 101, 108, 32, 89),30,5,0,600,"",function(v) CFG.invPanelY=v end)
@@ -592,7 +608,7 @@ sliderColors={
 },
 sliderFallback=Color3.fromRGB(255,215,0),
 }
-local HAZARD_DIST = { sentry=500, corpse=500, slider=500 }
+local HAZARD_DIST={sentry=500,corpse=500,slider=500}
 hazSecL:Toggle(string.char(83, 101, 110, 116, 114, 121, 32, 84, 117, 114, 114, 101, 116, 115),false,function(v) CFG.sentryEnabled=v end)
 hazSecL:Slider(string.char(83, 101, 110, 116, 114, 121, 32, 68, 105, 115, 116, 97, 110, 99, 101),500,50,50,3000,string.char(109),function(v) HAZARD_DIST.sentry=v end)
 hazSecL:Divider("")
@@ -889,12 +905,12 @@ local ph=pc and pc:FindFirstChild(string.char(72, 117, 109, 97, 110, 111, 105, 1
 if ph and ph.Parent then
 local rp=ph.Position
 local dx=rp.X-myPos.X; local dy=rp.Y-myPos.Y; local dz=rp.Z-myPos.Z
-if dx*dx+dy*dy+dz*dz<=maxDSq then
+local dSq=dx*dx+dy*dy+dz*dz
+if dSq<=maxDSq then
 out[#out+1]={
-hrp=ph, char=pc, label=plr.Name, plr=plr,
+hrp=ph,char=pc,label=plr.Name,plr=plr,
 hum=pc:FindFirstChildOfClass(string.char(72, 117, 109, 97, 110, 111, 105, 100)),
-isPlayer=true, color=Color3.fromRGB(80,220,255),
-_distSq=dx*dx+dy*dy+dz*dz,
+isPlayer=true,color=Color3.fromRGB(80,220,255),_distSq=dSq,
 }
 end
 end
@@ -907,10 +923,7 @@ if nf then
 local ok,kids=pcall(function() return nf:GetChildren() end)
 if ok and kids then
 for _,child in ipairs(kids) do
-if child.ClassName==string.char(77, 111, 100, 101, 108)
-and not pCharSet[child]
-and not pNameSet[child.Name]
-and child~=char then
+if child.ClassName==string.char(77, 111, 100, 101, 108) and not pCharSet[child] and not pNameSet[child.Name] and child~=char then
 local hum=child:FindFirstChildOfClass(string.char(72, 117, 109, 97, 110, 111, 105, 100))
 if hum then
 local ph=child:FindFirstChild(string.char(72, 117, 109, 97, 110, 111, 105, 100, 82, 111, 111, 116, 80, 97, 114, 116)) or child:FindFirstChild(string.char(84, 111, 114, 115, 111))
@@ -920,10 +933,9 @@ local dx=rp.X-myPos.X; local dy=rp.Y-myPos.Y; local dz=rp.Z-myPos.Z
 local dSq=dx*dx+dy*dy+dz*dz
 if dSq<=maxDSq then
 out[#out+1]={
-hrp=ph, char=child, label=child.Name, plr=nil,
-hum=hum, isPlayer=false,
-color=Color3.fromRGB(255,80,80),
-_distSq=dSq,
+hrp=ph,char=child,label=child.Name,plr=nil,
+hum=hum,isPlayer=false,
+color=Color3.fromRGB(255,80,80),_distSq=dSq,
 }
 end
 end
@@ -933,11 +945,10 @@ end
 end
 end
 end
-table.sort(out,function(a,b) return a._distSq < b._distSq end)
+table.sort(out,function(a,b) return a._distSq<b._distSq end)
 for i=ENT_MAX+1,#out do out[i]=nil end
 entObjects=out
 end
-local lootObjects2={}
 local function getLootsFolder()
 local b=workspace:FindFirstChild(string.char(66, 117, 105, 108, 100, 105, 110, 103, 115)); return b and b:FindFirstChild(string.char(76, 111, 111, 116, 115))
 end
@@ -975,7 +986,7 @@ function(n) return CFG.selectedCrates[n]==true end)
 end
 lootObjects=out
 end
-local hazObjects={}
+local hazObjects2={}
 local _hazFolders={}
 local function resolveFolder(key,pathFn)
 local ref=_hazFolders[key]
@@ -990,16 +1001,8 @@ local function rebuildHazards()
 local lp=Players.LocalPlayer; local char=lp and lp.Character
 local hrp=char and char:FindFirstChild(string.char(72, 117, 109, 97, 110, 111, 105, 100, 82, 111, 111, 116, 80, 97, 114, 116))
 if not hrp then hazObjects={}; return end
-local myPos=hrp.Position; local maxDSq=CFG.hazardDist*CFG.hazardDist
+local myPos=hrp.Position
 local out={}
-local function tryAdd(anchor,label,color)
-if not anchor or not anchor.Parent then return end
-local rp=anchor.Position
-local dx=rp.X-myPos.X; local dy=rp.Y-myPos.Y; local dz=rp.Z-myPos.Z
-if dx*dx+dy*dy+dz*dz<=maxDSq then
-out[#out+1]={part=anchor,label=label,color=color}
-end
-end
 local function scanFolder(folder,fn)
 if not folder then return end
 local ok,kids=pcall(function() return folder:GetChildren() end)
@@ -1086,6 +1089,7 @@ local myPos=hrp and hrp.Position
 local drawn=0
 if CFG.lootEnabled and myPos then
 for _,e in ipairs(lootObjects) do
+if e then
 local part=e.part
 if part and part.Parent then
 local sc,on=WorldToScreen(part.Position)
@@ -1104,23 +1108,23 @@ end
 end
 end
 end
+end
 for i=drawn+1,lootDrawn do lootLabels[i].Visible=false; lootDots[i].Visible=false end
 lootDrawn=drawn
 local eDrawn=0
-local occupiedSlots = {}
-local function isOccupied(x, y, w, h)
-for _, r in ipairs(occupiedSlots) do
-local overlapX = math.abs(x - r.x) < (w*0.5 + r.w*0.5 + 4)
-local overlapY = math.abs(y - r.y) < (h + r.h + 2)
-if overlapX and overlapY then return true end
+local occupiedSlots={}
+local function isOccupied(x,y,w,h)
+for _,r in ipairs(occupiedSlots) do
+if math.abs(x-r.x)<(w*0.5+r.w*0.5+4) and math.abs(y-r.y)<(h+r.h+2) then return true end
 end
 return false
 end
-local function occupy(x, y, w, h)
-occupiedSlots[#occupiedSlots+1] = {x=x, y=y, w=w, h=h}
+local function occupy(x,y,w,h)
+occupiedSlots[#occupiedSlots+1]={x=x,y=y,w=w,h=h}
 end
 if CFG.entityEnabled and myPos then
 for _,e in ipairs(entObjects) do
+if e then
 local ph=e.hrp
 if e.isPlayer and e.plr then
 local pc=e.plr.Character
@@ -1145,45 +1149,42 @@ local rp2=ph.Position
 local dx2=rp2.X-myPos.X; local dy2=rp2.Y-myPos.Y; local dz2=rp2.Z-myPos.Z
 local dist=floor(sqrt(dx2*dx2+dy2*dy2+dz2*dz2))
 local col=e.color
-local hx=headSc.X
-local hy=headSc.Y
-local boxH = 60
-if footOn and footSc and footSc.Y then
-boxH = math.max(math.abs(footSc.Y - hy), 10)
-end
-local barH = math.max(boxH, 20)
+local hx=headSc.X; local hy=headSc.Y
+local boxH=footOn and math.max(math.abs(footSc.Y-hy),10) or 60
+local labelW=(string.len(e.label)+8)*7
+local labelH=56
+if isOccupied(hx,hy-28,labelW,labelH) then
+s.name.Visible=false; s.dist.Visible=false
+s.hpBg.Visible=false; s.hpFg.Visible=false
+s.hpTxt.Visible=false; s.weapon.Visible=false
+else
+occupy(hx,hy-28,labelW,labelH)
 if CFG.showName then
 s.name.Text=(e.isPlayer and string.char(91, 80, 93, 32) or string.char(91, 78, 80, 67, 93, 32))..e.label
-s.name.Color=col
-s.name.Position=Vector2.new(hx, hy-28)
-s.name.Visible=true
+s.name.Color=col; s.name.Position=Vector2.new(hx,hy-28); s.name.Visible=true
 else s.name.Visible=false end
 if CFG.showDist then
-s.dist.Text=dist..string.char(109)
-s.dist.Color=Color3.fromRGB(210,210,210)
-s.dist.Position=Vector2.new(hx, hy-14)
-s.dist.Visible=true
+s.dist.Text=dist..string.char(109); s.dist.Color=Color3.fromRGB(210,210,210)
+s.dist.Position=Vector2.new(hx,hy-14); s.dist.Visible=true
 else s.dist.Visible=false end
-if CFG.showHealth then
-local barX = hx - 16
-s.hpBg.From=Vector2.new(barX,hy); s.hpBg.To=Vector2.new(barX,hy+barH); s.hpBg.Visible=true
-local fillBot=hy+barH*(1-hRatio)
-s.hpFg.Color=hCol; s.hpFg.From=Vector2.new(barX,hy+barH); s.hpFg.To=Vector2.new(barX,fillBot); s.hpFg.Visible=true
-s.hpTxt.Text=floor(hp)..string.char(104, 112)
-s.hpTxt.Color=hCol
-s.hpTxt.Position=Vector2.new(hx, hy+barH+4)
-s.hpTxt.Visible=true
+if CFG.showHealth and footOn then
+local barX=hx-boxH*0.25-8
+s.hpBg.From=Vector2.new(barX,hy); s.hpBg.To=Vector2.new(barX,hy+boxH); s.hpBg.Visible=true
+local fillBot=hy+boxH*(1-hRatio)
+s.hpFg.Color=hCol; s.hpFg.From=Vector2.new(barX,hy+boxH); s.hpFg.To=Vector2.new(barX,fillBot); s.hpFg.Visible=true
+s.hpTxt.Text=floor(hp)..string.char(104, 112); s.hpTxt.Color=hCol
+s.hpTxt.Position=Vector2.new(hx,hy+boxH+4); s.hpTxt.Visible=true
 else s.hpBg.Visible=false; s.hpFg.Visible=false; s.hpTxt.Visible=false end
-if CFG.showWeapon then
+if CFG.showWeapon and footOn then
 local tool=e.char and e.char:FindFirstChildOfClass(string.char(84, 111, 111, 108))
 local wname=tool and tool.Name
 if wname then
-s.weapon.Text=string.char(91)..wname..string.char(93)
-s.weapon.Color=Color3.fromRGB(220,220,80)
-s.weapon.Position=Vector2.new(hx, hy+barH+16)
-s.weapon.Visible=true
+s.weapon.Text=string.char(91)..wname..string.char(93); s.weapon.Color=Color3.fromRGB(220,220,80)
+s.weapon.Position=Vector2.new(hx,hy+boxH+16); s.weapon.Visible=true
 else s.weapon.Visible=false end
 else s.weapon.Visible=false end
+end
+end
 end
 end
 end
@@ -1193,6 +1194,7 @@ entDrawn=eDrawn
 local hDrawn=0
 if myPos then
 for _,e in ipairs(hazObjects) do
+if e then
 local part=e.part
 if part and part.Parent then
 local sc,on=WorldToScreen(part.Position)
@@ -1211,21 +1213,10 @@ end
 end
 end
 end
+end
 for i=hDrawn+1,hazDrawn do hazLabels[i].Visible=false; hazDots[i].Visible=false end
 hazDrawn=hDrawn
 if CFG.invEnabled and myPos then
-local invKeyDown = true
-if CFG.invHoldMode then
-invKeyDown = false
-if CFG.invKeyType==string.char(109, 111, 117, 115, 101, 49) then invKeyDown=ismouse1pressed()
-elseif CFG.invKeyType==string.char(109, 111, 117, 115, 101, 50) then invKeyDown=ismouse2pressed()
-elseif CFG.invKeyType==string.char(107, 101, 121) and CFG.invKeyCode then
-invKeyDown=iskeypressed(CFG.invKeyCode)
-end
-end
-if not invKeyDown then
-invCurrentEntity=nil; hideInvPanel()
-else
 local vp=Camera.ViewportSize
 local cx,cy=vp.X*0.5,vp.Y*0.5
 local hrSq=CFG.invHoverRadius*CFG.invHoverRadius
@@ -1252,8 +1243,10 @@ local ok,secs=pcall(collectInventory,found.char,found.plr,found.label)
 if ok and secs then
 invCurrentLines=buildLines(label,secs)
 else
-invCurrentLines={{text=label,color=Color3.fromRGB(80,220,255)},
-{text=string.char(32, 32, 40, 114, 101, 97, 100, 32, 101, 114, 114, 111, 114, 41),color=Color3.fromRGB(180,60,60)}}
+invCurrentLines={
+{text=label,color=Color3.fromRGB(80,220,255)},
+{text=string.char(32, 32, 40, 114, 101, 97, 100, 32, 101, 114, 114, 111, 114, 41),color=Color3.fromRGB(180,60,60)}
+}
 end
 end
 end
@@ -1272,7 +1265,6 @@ for i=lineCount+1,invLinesDrawn do invLines[i].Visible=false end
 invLinesDrawn=lineCount
 else
 invCurrentEntity=nil; hideInvPanel()
-end
 end
 else
 hideInvPanel()
