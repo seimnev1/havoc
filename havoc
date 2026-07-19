@@ -1,7 +1,7 @@
 local Lib = loadstring(game:HttpGet(string.char(104, 116, 116, 112, 115, 58, 47, 47, 114, 97, 119, 46, 103, 105, 116, 104, 117, 98, 117, 115, 101, 114, 99, 111, 110, 116, 101, 110, 116, 46, 99, 111, 109, 47, 110, 101, 97, 120, 117, 115, 120, 103, 111, 100, 45, 112, 110, 103, 47, 73, 78, 83, 45, 117, 105, 47, 109, 97, 105, 110, 47, 117, 105, 108, 105, 98, 46, 109, 105, 110, 46, 108, 117, 97)))() or INSui
 local win = Lib:CreateWindow({
-title    = string.char(83, 101, 105, 109),
-subtitle = string.char(118, 51),
+title    = string.char(72, 97, 118, 111, 99, 32, 69, 83, 80),
+subtitle = string.char(118, 50),
 size     = Vector2.new(580, 460),
 })
 win:AddSettingsTab(string.char(99, 111, 103))
@@ -864,48 +864,7 @@ end
 end
 return out
 end
-local _npcRef=nil; local _npcStamp=0
-local function findNPCFolder()
-local pChars={}
-for _,plr in ipairs(Players:GetPlayers()) do
-if plr.Character then pChars[plr.Character]=true end
-end
-local lp=Players.LocalPlayer; local myChar=lp and lp.Character
-local ok,kids=pcall(function() return workspace:GetChildren() end)
-if not ok or not kids then return nil end
-for _,c in ipairs(kids) do
-if (c.ClassName==string.char(70, 111, 108, 100, 101, 114) or c.ClassName==string.char(77, 111, 100, 101, 108)) and c~=myChar and not pChars[c] then
-local ok2,ck=pcall(function() return c:GetChildren() end)
-if ok2 and ck then
-for _,child in ipairs(ck) do
-if child.ClassName==string.char(77, 111, 100, 101, 108) then
-local ok3,h=pcall(function() return child:FindFirstChildOfClass(string.char(72, 117, 109, 97, 110, 111, 105, 100)) end)
-if ok3 and h then return c end
-end
-end
-end
-end
-end
-end
-local function getNPCFolder()
-local now=tick()
-local dead=true
-if _npcRef then
-pcall(function() dead=(_npcRef.Parent==nil) end)
-end
-if dead or (now-_npcStamp)>=3 then
-_npcRef=findNPCFolder(); _npcStamp=now
-end
-return _npcRef
-end
 local _entMap = {}
-local function entID(obj)
-if obj.ClassName ~= string.char(77, 111, 100, 101, 108) then return tostring(obj) end
-for _,plr in ipairs(Players:GetPlayers()) do
-if plr.Character == obj then return string.char(112, 108, 114, 95)..plr.UserId end
-end
-return string.char(110, 112, 99, 95)..tostring(obj)
-end
 local function rebuildEntities()
 local lp=Players.LocalPlayer; local char=lp and lp.Character
 local hrp=char and char:FindFirstChild(string.char(72, 117, 109, 97, 110, 111, 105, 100, 82, 111, 111, 116, 80, 97, 114, 116))
@@ -953,16 +912,20 @@ end
 end
 end
 if CFG.showNPCs then
-local nf=getNPCFolder()
-if nf then
-local ok,kids=pcall(function() return nf:GetChildren() end)
-if ok and kids then
+local ok,wsKids=pcall(function() return workspace:GetChildren() end)
+if ok and wsKids then
+for _,container in ipairs(wsKids) do
+if not pCharSet[container] and container~=char then
+local cn=container.ClassName
+if cn==string.char(70, 111, 108, 100, 101, 114) or cn==string.char(77, 111, 100, 101, 108) then
+local ok2,kids=pcall(function() return container:GetChildren() end)
+if ok2 and kids then
 for _,child in ipairs(kids) do
 if child.ClassName==string.char(77, 111, 100, 101, 108) and not pCharSet[child] and not pNameSet[child.Name] and child~=char then
 local hum=child:FindFirstChildOfClass(string.char(72, 117, 109, 97, 110, 111, 105, 100))
 if hum then
 local ph=child:FindFirstChild(string.char(72, 117, 109, 97, 110, 111, 105, 100, 82, 111, 111, 116, 80, 97, 114, 116)) or child:FindFirstChild(string.char(84, 111, 114, 115, 111))
-if ph then
+if ph and ph.Parent then
 local rp=ph.Position
 local dx=rp.X-myPos.X; local dy=rp.Y-myPos.Y; local dz=rp.Z-myPos.Z
 local dSq=dx*dx+dy*dy+dz*dz
@@ -975,7 +938,13 @@ _entMap[id]={hrp=ph,char=child,label=child.Name,plr=nil,
 hum=hum,isPlayer=false,
 color=Color3.fromRGB(255,80,80),_distSq=dSq}
 else
-e.hrp=ph; e._distSq=dSq
+e.hrp=ph; e.char=child; e._distSq=dSq
+if not e.hum or not e.hum.Parent then
+e.hum=hum
+end
+end
+end
+end
 end
 end
 end
