@@ -969,6 +969,8 @@ end
 return out
 end
 local _entMap = {}
+local _entDeadTime = {}
+local ENT_GRACE = 2
 local function rebuildEntities()
 local lp=Players.LocalPlayer; local char=lp and lp.Character
 local hrp=char and char:FindFirstChild(string.char(72, 117, 109, 97, 110, 111, 105, 100, 82, 111, 111, 116, 80, 97, 114, 116))
@@ -1058,8 +1060,18 @@ end
 end
 end
 end
+local now = tick()
 for id in pairs(_entMap) do
-if not activeIds[id] then _entMap[id]=nil end
+if not activeIds[id] then
+if not _entDeadTime[id] then
+_entDeadTime[id] = now
+elseif now - _entDeadTime[id] > ENT_GRACE then
+_entMap[id] = nil
+_entDeadTime[id] = nil
+end
+else
+_entDeadTime[id] = nil
+end
 end
 local out={}
 for _,e in pairs(_entMap) do out[#out+1]=e end
