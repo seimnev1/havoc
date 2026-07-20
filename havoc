@@ -31,7 +31,7 @@ local Lib = loadstring(game:HttpGet(string.char(104, 116, 116, 112, 115, 58, 47,
 local win = Lib:CreateWindow({
 title    = string.char(72, 97, 118, 111, 99, 32, 69, 83, 80),
 subtitle = string.char(118, 50),
-size     = Vector2.new(580, 460),
+size     = Vector2.new(580, 620),
 })
 win:AddSettingsTab(string.char(99, 111, 103))
 local Players     = game:GetService(string.char(80, 108, 97, 121, 101, 114, 115))
@@ -269,6 +269,10 @@ entityEnabled=true, entityMaxDist=500,
 showPlayers=true, showNPCs=true,
 showHealth=true, showName=true, showDist=true, showWeapon=true,
 showCornerBox=true,
+showSkeleton=false,
+skeletonMaxDist=250,
+playerColor=string.char(66, 108, 117, 101), npcColor=string.char(82, 101, 100), bossColor=string.char(71, 111, 108, 100), skeletonColor=string.char(87, 104, 105, 116, 101),
+lootColor=string.char(84, 105, 101, 114, 32, 67, 111, 108, 111, 114, 115), hazardColor=string.char(84, 121, 112, 101, 32, 67, 111, 108, 111, 114, 115),
 sentryEnabled=false, corpseEnabled=false, sliderEnabled=false,
 hazardDist=500,
 invEnabled=true, invHoverRadius=150,
@@ -290,6 +294,21 @@ local function tierVisible(name)
 local t=ITEM_TIER[name]; local fn=t and TIER_SHOW[t]
 return fn and fn() or false
 end
+local COLOR_NAMES={string.char(66, 108, 117, 101),string.char(82, 101, 100),string.char(71, 111, 108, 100),string.char(71, 114, 101, 101, 110),string.char(80, 117, 114, 112, 108, 101),string.char(79, 114, 97, 110, 103, 101),string.char(80, 105, 110, 107),string.char(67, 121, 97, 110),string.char(87, 104, 105, 116, 101)}
+local COLOR_PALETTE={
+Blue=Color3.fromRGB(80,220,255), Red=Color3.fromRGB(255,80,80),
+Gold=Color3.fromRGB(255,200,0), Green=Color3.fromRGB(80,230,130),
+Purple=Color3.fromRGB(190,100,255), Orange=Color3.fromRGB(255,150,60),
+Pink=Color3.fromRGB(255,110,180), Cyan=Color3.fromRGB(70,230,230),
+White=Color3.fromRGB(245,245,245),
+}
+local function selectedColor(value,fallback)
+return COLOR_PALETTE[value] or fallback or COLOR_PALETTE.White
+end
+local function getSelection(value,default)
+return (type(value)==string.char(116, 97, 98, 108, 101) and value[1]) or value or default
+end
+local WORLD_COLOR_NAMES={string.char(84, 105, 101, 114, 32, 67, 111, 108, 111, 114, 115),string.char(84, 121, 112, 101, 32, 67, 111, 108, 111, 114, 115),string.char(66, 108, 117, 101),string.char(82, 101, 100),string.char(71, 111, 108, 100),string.char(71, 114, 101, 101, 110),string.char(80, 117, 114, 112, 108, 101),string.char(79, 114, 97, 110, 103, 101),string.char(80, 105, 110, 107),string.char(67, 121, 97, 110),string.char(87, 104, 105, 116, 101)}
 local OFF = {}
 do
 local _raw = {}
@@ -616,7 +635,22 @@ entSecR:Toggle(string.char(68, 105, 115, 116, 97, 110, 99, 101),true,function(v)
 entSecR:Toggle(string.char(72, 101, 97, 108, 116, 104, 32, 66, 97, 114),true,function(v) CFG.showHealth=v end)
 entSecR:Toggle(string.char(72, 101, 108, 100, 32, 87, 101, 97, 112, 111, 110),true,function(v) CFG.showWeapon=v end)
 entSecR:Toggle(string.char(67, 111, 114, 110, 101, 114, 32, 66, 111, 120),true,function(v) CFG.showCornerBox=v end)
+entSecR:Toggle(string.char(83, 107, 101, 108, 101, 116, 111, 110),false,function(v) CFG.showSkeleton=v end)
+entSecR:Slider(string.char(83, 107, 101, 108, 101, 116, 111, 110, 32, 68, 105, 115, 116, 97, 110, 99, 101),250,25,25,500,string.char(109),function(v) CFG.skeletonMaxDist=v end)
 entSecR:Toggle(string.char(80, 101, 114, 102, 111, 114, 109, 97, 110, 99, 101, 32, 83, 116, 97, 116, 117, 115),false,function(v) CFG.showStatus=v end)
+local entColorL=entTab:Section(string.char(69, 83, 80, 32, 67, 111, 108, 111, 114, 115),string.char(76, 101, 102, 116))
+entColorL:Dropdown(string.char(80, 108, 97, 121, 101, 114, 32, 69, 83, 80),{string.char(66, 108, 117, 101)},COLOR_NAMES,false,function(v)
+CFG.playerColor=getSelection(v,string.char(66, 108, 117, 101))
+end)
+entColorL:Dropdown(string.char(78, 80, 67, 32, 69, 83, 80),{string.char(82, 101, 100)},COLOR_NAMES,false,function(v)
+CFG.npcColor=getSelection(v,string.char(82, 101, 100))
+end)
+entColorL:Dropdown(string.char(66, 111, 115, 115, 32, 69, 83, 80),{string.char(71, 111, 108, 100)},COLOR_NAMES,false,function(v)
+CFG.bossColor=getSelection(v,string.char(71, 111, 108, 100))
+end)
+entColorL:Dropdown(string.char(83, 107, 101, 108, 101, 116, 111, 110),{string.char(87, 104, 105, 116, 101)},COLOR_NAMES,false,function(v)
+CFG.skeletonColor=getSelection(v,string.char(87, 104, 105, 116, 101))
+end)
 local lootTab  = win:Tab(string.char(76, 111, 111, 116, 32, 69, 83, 80),string.char(101, 121, 101))
 local lootSecL = lootTab:Section(string.char(73, 116, 101, 109, 115),string.char(76, 101, 102, 116))
 local lootSecR = lootTab:Section(string.char(83, 101, 116, 116, 105, 110, 103, 115),string.char(82, 105, 103, 104, 116))
@@ -673,6 +707,13 @@ lootSecL:Dropdown(string.char(83, 101, 108, 101, 99, 116, 32, 67, 114, 97, 116, 
 local t={}; for _,v in ipairs(sel) do t[v]=true end; CFG.selectedCrates=t
 end,false,true)
 lootSecR:Slider(string.char(77, 97, 120, 32, 68, 105, 115, 116, 97, 110, 99, 101),300,10,10,2000,string.char(109),function(v) CFG.maxDist=v end)
+local lootColorSec=lootTab:Section(string.char(87, 111, 114, 108, 100, 32, 67, 111, 108, 111, 114, 115),string.char(82, 105, 103, 104, 116))
+lootColorSec:Dropdown(string.char(76, 111, 111, 116, 32, 69, 83, 80),{string.char(84, 105, 101, 114, 32, 67, 111, 108, 111, 114, 115)},WORLD_COLOR_NAMES,false,function(v)
+CFG.lootColor=getSelection(v,string.char(84, 105, 101, 114, 32, 67, 111, 108, 111, 114, 115))
+end)
+lootColorSec:Dropdown(string.char(72, 97, 122, 97, 114, 100, 32, 69, 83, 80),{string.char(84, 121, 112, 101, 32, 67, 111, 108, 111, 114, 115)},WORLD_COLOR_NAMES,false,function(v)
+CFG.hazardColor=getSelection(v,string.char(84, 121, 112, 101, 32, 67, 111, 108, 111, 114, 115))
+end)
 local invTab  = win:Tab(string.char(73, 110, 118, 101, 110, 116, 111, 114, 121),string.char(112, 97, 99, 107, 97, 103, 101))
 local invSecL = invTab:Section(string.char(83, 101, 116, 116, 105, 110, 103, 115),string.char(76, 101, 102, 116))
 invSecL:Toggle(string.char(69, 110, 97, 98, 108, 101, 32, 73, 110, 118, 101, 110, 116, 111, 114, 121, 32, 86, 105, 101, 119, 101, 114),true,function(v) CFG.invEnabled=v end)
@@ -738,6 +779,7 @@ hpFg=newLine(Color3.fromRGB(80,220,80),4),
 hpTxt=newText(10), weapon=newText(11),
 tlH=newLine(nil,1), tlV=newLine(nil,1), trH=newLine(nil,1), trV=newLine(nil,1),
 blH=newLine(nil,1), blV=newLine(nil,1), brH=newLine(nil,1), brV=newLine(nil,1),
+bones={},
 }
 end
 entObjects={}; local entDrawn=0
@@ -747,6 +789,7 @@ s.hpBg.Visible=false; s.hpFg.Visible=false
 s.hpTxt.Visible=false; s.weapon.Visible=false
 s.tlH.Visible=false; s.tlV.Visible=false; s.trH.Visible=false; s.trV.Visible=false
 s.blH.Visible=false; s.blV.Visible=false; s.brH.Visible=false; s.brV.Visible=false
+for _,bone in ipairs(s.bones) do bone.Visible=false end
 end
 local function drawCornerBox(s,left,top,width,height,color,visible)
 if not visible then
@@ -764,6 +807,64 @@ setLine(s.blH,left,bottom,left+corner,bottom,color,true)
 setLine(s.blV,left,bottom-corner,left,bottom,color,true)
 setLine(s.brH,right-corner,bottom,right,bottom,color,true)
 setLine(s.brV,right,bottom-corner,right,bottom,color,true)
+end
+local SKELETON_LINKS={
+{{string.char(72, 101, 97, 100)},{string.char(85, 112, 112, 101, 114, 84, 111, 114, 115, 111),string.char(84, 111, 114, 115, 111)}},
+{{string.char(85, 112, 112, 101, 114, 84, 111, 114, 115, 111),string.char(84, 111, 114, 115, 111)},{string.char(76, 111, 119, 101, 114, 84, 111, 114, 115, 111),string.char(72, 117, 109, 97, 110, 111, 105, 100, 82, 111, 111, 116, 80, 97, 114, 116)}},
+{{string.char(85, 112, 112, 101, 114, 84, 111, 114, 115, 111),string.char(84, 111, 114, 115, 111)},{string.char(76, 101, 102, 116, 85, 112, 112, 101, 114, 65, 114, 109),string.char(76, 101, 102, 116, 32, 65, 114, 109)}},
+{{string.char(76, 101, 102, 116, 85, 112, 112, 101, 114, 65, 114, 109)},{string.char(76, 101, 102, 116, 76, 111, 119, 101, 114, 65, 114, 109)}},
+{{string.char(76, 101, 102, 116, 76, 111, 119, 101, 114, 65, 114, 109)},{string.char(76, 101, 102, 116, 72, 97, 110, 100)}},
+{{string.char(85, 112, 112, 101, 114, 84, 111, 114, 115, 111),string.char(84, 111, 114, 115, 111)},{string.char(82, 105, 103, 104, 116, 85, 112, 112, 101, 114, 65, 114, 109),string.char(82, 105, 103, 104, 116, 32, 65, 114, 109)}},
+{{string.char(82, 105, 103, 104, 116, 85, 112, 112, 101, 114, 65, 114, 109)},{string.char(82, 105, 103, 104, 116, 76, 111, 119, 101, 114, 65, 114, 109)}},
+{{string.char(82, 105, 103, 104, 116, 76, 111, 119, 101, 114, 65, 114, 109)},{string.char(82, 105, 103, 104, 116, 72, 97, 110, 100)}},
+{{string.char(76, 111, 119, 101, 114, 84, 111, 114, 115, 111),string.char(72, 117, 109, 97, 110, 111, 105, 100, 82, 111, 111, 116, 80, 97, 114, 116),string.char(84, 111, 114, 115, 111)},{string.char(76, 101, 102, 116, 85, 112, 112, 101, 114, 76, 101, 103),string.char(76, 101, 102, 116, 32, 76, 101, 103)}},
+{{string.char(76, 101, 102, 116, 85, 112, 112, 101, 114, 76, 101, 103)},{string.char(76, 101, 102, 116, 76, 111, 119, 101, 114, 76, 101, 103)}},
+{{string.char(76, 101, 102, 116, 76, 111, 119, 101, 114, 76, 101, 103)},{string.char(76, 101, 102, 116, 70, 111, 111, 116)}},
+{{string.char(76, 111, 119, 101, 114, 84, 111, 114, 115, 111),string.char(72, 117, 109, 97, 110, 111, 105, 100, 82, 111, 111, 116, 80, 97, 114, 116),string.char(84, 111, 114, 115, 111)},{string.char(82, 105, 103, 104, 116, 85, 112, 112, 101, 114, 76, 101, 103),string.char(82, 105, 103, 104, 116, 32, 76, 101, 103)}},
+{{string.char(82, 105, 103, 104, 116, 85, 112, 112, 101, 114, 76, 101, 103)},{string.char(82, 105, 103, 104, 116, 76, 111, 119, 101, 114, 76, 101, 103)}},
+{{string.char(82, 105, 103, 104, 116, 76, 111, 119, 101, 114, 76, 101, 103)},{string.char(82, 105, 103, 104, 116, 70, 111, 111, 116)}},
+}
+local COLOR_NAMES={string.char(66, 108, 117, 101),string.char(82, 101, 100),string.char(71, 111, 108, 100),string.char(71, 114, 101, 101, 110),string.char(80, 117, 114, 112, 108, 101),string.char(79, 114, 97, 110, 103, 101),string.char(80, 105, 110, 107),string.char(67, 121, 97, 110),string.char(87, 104, 105, 116, 101)}
+local COLOR_PALETTE={
+Blue=Color3.fromRGB(80,220,255), Red=Color3.fromRGB(255,80,80),
+Gold=Color3.fromRGB(255,200,0), Green=Color3.fromRGB(80,230,130),
+Purple=Color3.fromRGB(190,100,255), Orange=Color3.fromRGB(255,150,60),
+Pink=Color3.fromRGB(255,110,180), Cyan=Color3.fromRGB(70,230,230),
+White=Color3.fromRGB(245,245,245),
+}
+local function selectedColor(value,fallback)
+return COLOR_PALETTE[value] or fallback or COLOR_PALETTE.White
+end
+local function findRigPart(character,names)
+for _,name in ipairs(names) do
+local part=character:FindFirstChild(name)
+if part and part.Position then return part end
+end
+end
+local function drawSkeleton(slot,character,color,visible)
+if not visible then
+for _,bone in ipairs(slot.bones) do bone.Visible=false end
+return
+end
+while #slot.bones<#SKELETON_LINKS do
+slot.bones[#slot.bones+1]=newLine(color,1)
+end
+for index,link in ipairs(SKELETON_LINKS) do
+local a=findRigPart(character,link[1])
+local b=findRigPart(character,link[2])
+local line=slot.bones[index]
+if a and b then
+local aScreen,aOn=WorldToScreen(a.Position)
+local bScreen,bOn=WorldToScreen(b.Position)
+if aOn and bOn then
+setLine(line,aScreen.X,aScreen.Y,bScreen.X,bScreen.Y,color,true)
+else
+line.Visible=false
+end
+else
+line.Visible=false
+end
+end
 end
 for i=1,ENT_MAX do hideEnt(entSlots[i]) end
 local HAZ_POOL=80
@@ -1071,10 +1172,10 @@ if not e then
 local ok3,hum=pcall(function() return pc:FindFirstChildOfClass(string.char(72, 117, 109, 97, 110, 111, 105, 100)) end)
 e={hrp=ph,char=pc,label=plr.Name,plr=plr,
 hum=ok3 and hum or nil,isPlayer=true,
-color=Color3.fromRGB(80,220,255),_distSq=dSq}
+color=selectedColor(CFG.playerColor),_distSq=dSq}
 _entMap[id]=e
 else
-e.hrp=ph; e.char=pc; e._distSq=dSq
+e.hrp=ph; e.char=pc; e._distSq=dSq; e.color=selectedColor(CFG.playerColor)
 if not e.hum or not e.hum.Parent then
 local ok3,hum=pcall(function() return pc:FindFirstChildOfClass(string.char(72, 117, 109, 97, 110, 111, 105, 100)) end)
 if ok3 then e.hum=hum end
@@ -1111,9 +1212,9 @@ local e=_entMap[id]
 if not e then
 _entMap[id]={hrp=ph,char=child,label=child.Name,plr=nil,
 hum=hum,isPlayer=false,
-color=Color3.fromRGB(255,80,80),_distSq=dSq}
+color=selectedColor(CFG.npcColor),_distSq=dSq}
 else
-e.hrp=ph; e.char=child; e._distSq=dSq
+e.hrp=ph; e.char=child; e._distSq=dSq; e.color=selectedColor(CFG.npcColor)
 if not e.hum or not e.hum.Parent then
 e.hum=hum
 end
@@ -1151,6 +1252,10 @@ end
 local function getLootsFolder()
 local b=workspace:FindFirstChild(string.char(66, 117, 105, 108, 100, 105, 110, 103, 115)); return b and b:FindFirstChild(string.char(76, 111, 111, 116, 115))
 end
+local function lootDisplayColor(default)
+if CFG.lootColor~=string.char(84, 105, 101, 114, 32, 67, 111, 108, 111, 114, 115) then return selectedColor(CFG.lootColor) end
+return default
+end
 local function rebuildLoot()
 local lp=Players.LocalPlayer; local char=lp and lp.Character
 local hrp=char and char:FindFirstChild(string.char(72, 117, 109, 97, 110, 111, 105, 100, 82, 111, 111, 116, 80, 97, 114, 116))
@@ -1178,7 +1283,7 @@ end
 end
 end
 end
-scan(itemsF,function(n) return itemColor(n) end,function(n) return CFG.selectedItems[n]==true end)
+scan(itemsF,function(n) return lootDisplayColor(itemColor(n)) end,function(n) return CFG.selectedItems[n]==true end)
 if CFG.showCrates and cratesF then
 local ok,kids=pcall(function() return cratesF:GetChildren() end)
 if ok and kids then
@@ -1194,7 +1299,7 @@ local luckVal=data and data:FindFirstChild(string.char(108, 117, 99, 107))
 out[#out+1]={
 part=root,
 name=obj.Name,
-color=crateColors[obj.Name] or Color3.fromRGB(200,200,200),
+color=lootDisplayColor(crateColors[obj.Name] or Color3.fromRGB(200,200,200)),
 luckRef=luckVal,
 }
 end
@@ -1211,6 +1316,10 @@ local function resolveFolder(key,pathFn)
 local ref=_hazFolders[key]
 if ref and ref.Parent then return ref end
 local ok,f=pcall(pathFn); _hazFolders[key]=ok and f or nil; return _hazFolders[key]
+end
+local function hazardDisplayColor(default)
+if CFG.hazardColor~=string.char(84, 121, 112, 101, 32, 67, 111, 108, 111, 114, 115) then return selectedColor(CFG.hazardColor) end
+return default
 end
 local function getSliderTier(name)
 local n=name:match(string.char(91, 76, 108, 93, 101, 118, 101, 108, 91, 45, 37, 32, 93, 63, 40, 37, 100, 41)) or name:match(string.char(40, 37, 100, 41))
@@ -1237,7 +1346,7 @@ if a and a.Parent then
 local rp=a.Position
 local dx=rp.X-myPos.X; local dy=rp.Y-myPos.Y; local dz=rp.Z-myPos.Z
 if dx*dx+dy*dy+dz*dz<=sentryDSq then
-out[#out+1]={part=a,label=string.char(91, 83, 69, 78, 84, 82, 89, 93, 32)..obj.Name,color=HAZARD_COLORS.sentry}
+out[#out+1]={part=a,label=string.char(91, 83, 69, 78, 84, 82, 89, 93, 32)..obj.Name,color=hazardDisplayColor(HAZARD_COLORS.sentry)}
 end
 end
 end)
@@ -1252,7 +1361,7 @@ if a and a.Parent then
 local rp=a.Position
 local dx=rp.X-myPos.X; local dy=rp.Y-myPos.Y; local dz=rp.Z-myPos.Z
 if dx*dx+dy*dy+dz*dz<=corpseDSq then
-out[#out+1]={part=a,label=string.char(91, 67, 79, 82, 80, 83, 69, 93, 32)..m.Name,color=HAZARD_COLORS.corpse}
+out[#out+1]={part=a,label=string.char(91, 67, 79, 82, 80, 83, 69, 93, 32)..m.Name,color=hazardDisplayColor(HAZARD_COLORS.corpse)}
 end
 end
 end
@@ -1270,7 +1379,7 @@ local dx=rp.X-myPos.X; local dy=rp.Y-myPos.Y; local dz=rp.Z-myPos.Z
 if dx*dx+dy*dy+dz*dz<=sliderDSq then
 local tier=getSliderTier(obj.Name)
 local color=(tier and HAZARD_COLORS.sliderColors[tier]) or HAZARD_COLORS.sliderFallback
-out[#out+1]={part=a,label=(tier and string.char(91, 83, 76, 73, 68, 69, 82, 32, 84)..tier..string.char(93) or string.char(91, 83, 76, 73, 68, 69, 82, 93)),color=color}
+out[#out+1]={part=a,label=(tier and string.char(91, 83, 76, 73, 68, 69, 82, 32, 84)..tier..string.char(93) or string.char(91, 83, 76, 73, 68, 69, 82, 93)),color=hazardDisplayColor(color)}
 end
 end
 end
@@ -1406,14 +1515,15 @@ local hx=headSc.X; local hy=headSc.Y
 local boxH=footOn and math.max(math.abs(footSc.Y-hy),10) or 60
 local boxW=boxH*0.50
 local boxLeft=hx-boxW*0.5
-local boxColor=isBoss(e.label) and Color3.fromRGB(255,200,0) or col
+local boxColor=isBoss(e.label) and selectedColor(CFG.bossColor) or col
 drawCornerBox(s,boxLeft,hy,boxW,boxH,boxColor,CFG.showCornerBox and footOn)
+drawSkeleton(s,e.char,selectedColor(CFG.skeletonColor),CFG.showSkeleton and dist<=CFG.skeletonMaxDist)
 if CFG.showName then
 local prefix, nameCol
 if e.isPlayer then
 prefix=string.char(91, 80, 93, 32); nameCol=col
 elseif isBoss(e.label) then
-prefix=string.char(91, 66, 79, 83, 83, 93, 32); nameCol=Color3.fromRGB(255,200,0)
+prefix=string.char(91, 66, 79, 83, 83, 93, 32); nameCol=selectedColor(CFG.bossColor)
 else
 prefix=string.char(91, 78, 80, 67, 93, 32); nameCol=col
 end
