@@ -1,3 +1,32 @@
+if _G.HavocESP then
+_G.HavocESP:Destroy()
+end
+local HavocESP = { alive = true, connections = {}, drawings = {} }
+function HavocESP:Connect(signal, callback)
+local ok, connection = pcall(function()
+return signal:Connect(callback)
+end)
+if ok and connection then
+self.connections[#self.connections + 1] = connection
+end
+return connection
+end
+function HavocESP:TrackDrawing(drawing)
+self.drawings[#self.drawings + 1] = drawing
+return drawing
+end
+function HavocESP:Destroy()
+self.alive = false
+for _, connection in ipairs(self.connections) do
+pcall(function() connection:Disconnect() end)
+end
+for _, drawing in ipairs(self.drawings) do
+pcall(function() drawing:Remove() end)
+end
+self.connections = {}
+self.drawings = {}
+end
+_G.HavocESP = HavocESP
 local Lib = loadstring(game:HttpGet(string.char(104, 116, 116, 112, 115, 58, 47, 47, 114, 97, 119, 46, 103, 105, 116, 104, 117, 98, 117, 115, 101, 114, 99, 111, 110, 116, 101, 110, 116, 46, 99, 111, 109, 47, 110, 101, 97, 120, 117, 115, 120, 103, 111, 100, 45, 112, 110, 103, 47, 73, 78, 83, 45, 117, 105, 47, 109, 97, 105, 110, 47, 117, 105, 108, 105, 98, 46, 109, 105, 110, 46, 108, 117, 97)))() or INSui
 local win = Lib:CreateWindow({
 title    = string.char(72, 97, 118, 111, 99, 32, 69, 83, 80),
@@ -239,10 +268,12 @@ selectedCrates={},
 entityEnabled=true, entityMaxDist=500,
 showPlayers=true, showNPCs=true,
 showHealth=true, showName=true, showDist=true, showWeapon=true,
+showCornerBox=true,
 sentryEnabled=false, corpseEnabled=false, sliderEnabled=false,
 hazardDist=500,
 invEnabled=true, invHoverRadius=150,
 invPanelX=10, invPanelY=30,
+showStatus=false,
 }
 local TIER_SHOW = {
 mythic=function() return CFG.showMythic end,
@@ -323,7 +354,7 @@ memory_write(string.char(102, 108, 111, 97, 116), FOG.atmoAddr + OFF.ATMO_OFFSET
 end
 end
 local fogTimer = 0
-RunService.Heartbeat:Connect(function(dt)
+HavocESP:Connect(RunService.Heartbeat, function(dt)
 fogTimer = fogTimer + dt
 if fogTimer < 0.1 then return end
 fogTimer = 0
@@ -390,7 +421,7 @@ enabled=false, fov=120, smooth=0.3, bone=string.char(72, 101, 97, 100),
 showFOV=false, keyType=string.char(109, 111, 117, 115, 101, 50), keyCode=nil,
 targetMode=string.char(97, 108, 108), predTime=0.07,
 }
-local fovCircle=Drawing.new(string.char(67, 105, 114, 99, 108, 101))
+local fovCircle=HavocESP:TrackDrawing(Drawing.new(string.char(67, 105, 114, 99, 108, 101)))
 fovCircle.Radius=AIM.fov; fovCircle.Filled=false; fovCircle.Thickness=1
 fovCircle.NumSides=64; fovCircle.Color=Color3.fromRGB(255,255,255)
 fovCircle.Transparency=0.5; fovCircle.Visible=false
@@ -452,6 +483,8 @@ _smoothVel[bone] = prev_smooth + (rawVel - prev_smooth) * VEL_ALPHA
 return _smoothVel[bone]
 end
 local function getNearestTarget()
+Camera = workspace.CurrentCamera or Camera
+if not Camera then return nil end
 local char=LocalPlayer and LocalPlayer.Character
 if not char then return nil end
 local vp=Camera.ViewportSize
@@ -476,6 +509,11 @@ end
 return best
 end
 local function doAimbot()
+Camera = workspace.CurrentCamera or Camera
+if not Camera then
+fovCircle.Visible=false
+return
+end
 if AIM.showFOV and AIM.enabled then
 local vp=Camera.ViewportSize
 fovCircle.Position=Vector2.new(vp.X*0.5,vp.Y*0.5)
@@ -577,6 +615,8 @@ entSecR:Toggle(string.char(78, 97, 109, 101),true,function(v) CFG.showName=v end
 entSecR:Toggle(string.char(68, 105, 115, 116, 97, 110, 99, 101),true,function(v) CFG.showDist=v end)
 entSecR:Toggle(string.char(72, 101, 97, 108, 116, 104, 32, 66, 97, 114),true,function(v) CFG.showHealth=v end)
 entSecR:Toggle(string.char(72, 101, 108, 100, 32, 87, 101, 97, 112, 111, 110),true,function(v) CFG.showWeapon=v end)
+entSecR:Toggle(string.char(67, 111, 114, 110, 101, 114, 32, 66, 111, 120),true,function(v) CFG.showCornerBox=v end)
+entSecR:Toggle(string.char(80, 101, 114, 102, 111, 114, 109, 97, 110, 99, 101, 32, 83, 116, 97, 116, 117, 115),false,function(v) CFG.showStatus=v end)
 local lootTab  = win:Tab(string.char(76, 111, 111, 116, 32, 69, 83, 80),string.char(101, 121, 101))
 local lootSecL = lootTab:Section(string.char(73, 116, 101, 109, 115),string.char(76, 101, 102, 116))
 local lootSecR = lootTab:Section(string.char(83, 101, 116, 116, 105, 110, 103, 115),string.char(82, 105, 103, 104, 116))
@@ -664,17 +704,25 @@ hazSecL:Divider("")
 hazSecL:Toggle(string.char(75, 101, 121, 99, 97, 114, 100, 32, 83, 108, 105, 100, 101, 114, 115),false,function(v) CFG.sliderEnabled=v end)
 hazSecL:Slider(string.char(83, 108, 105, 100, 101, 114, 32, 68, 105, 115, 116, 97, 110, 99, 101),500,50,50,3000,string.char(109),function(v) HAZARD_DIST.slider=v end)
 local FONT=Drawing.Fonts.System
+local statusText=HavocESP:TrackDrawing(Drawing.new(string.char(84, 101, 120, 116)))
+statusText.Font=FONT; statusText.Size=12; statusText.Outline=true
+statusText.Center=false; statusText.Color=Color3.fromRGB(120,220,255)
+statusText.Visible=false
 local function newText(size)
-local t=Drawing.new(string.char(84, 101, 120, 116)); t.Outline=true; t.Center=true
+local t=HavocESP:TrackDrawing(Drawing.new(string.char(84, 101, 120, 116))); t.Outline=true; t.Center=true
 t.Font=FONT; t.Size=size or 13; t.Visible=false; return t
 end
 local function newDot()
-local d=Drawing.new(string.char(67, 105, 114, 99, 108, 101)); d.Radius=4; d.Filled=true
+local d=HavocESP:TrackDrawing(Drawing.new(string.char(67, 105, 114, 99, 108, 101))); d.Radius=4; d.Filled=true
 d.NumSides=12; d.Thickness=1; d.Visible=false; return d
 end
 local function newLine(col,thick)
-local l=Drawing.new(string.char(76, 105, 110, 101)); l.Color=col or Color3.new(1,1,1)
+local l=HavocESP:TrackDrawing(Drawing.new(string.char(76, 105, 110, 101))); l.Color=col or Color3.new(1,1,1)
 l.Thickness=thick or 1; l.Visible=false; return l
+end
+local function setLine(line,x1,y1,x2,y2,color,visible)
+line.From=Vector2.new(x1,y1); line.To=Vector2.new(x2,y2)
+line.Color=color; line.Visible=visible
 end
 local LOOT_POOL=300
 local lootLabels,lootDots={},{}
@@ -688,6 +736,8 @@ name=newText(12), dist=newText(11),
 hpBg=newLine(Color3.fromRGB(30,30,30),4),
 hpFg=newLine(Color3.fromRGB(80,220,80),4),
 hpTxt=newText(10), weapon=newText(11),
+tlH=newLine(nil,1), tlV=newLine(nil,1), trH=newLine(nil,1), trV=newLine(nil,1),
+blH=newLine(nil,1), blV=newLine(nil,1), brH=newLine(nil,1), brV=newLine(nil,1),
 }
 end
 entObjects={}; local entDrawn=0
@@ -695,6 +745,25 @@ local function hideEnt(s)
 s.name.Visible=false; s.dist.Visible=false
 s.hpBg.Visible=false; s.hpFg.Visible=false
 s.hpTxt.Visible=false; s.weapon.Visible=false
+s.tlH.Visible=false; s.tlV.Visible=false; s.trH.Visible=false; s.trV.Visible=false
+s.blH.Visible=false; s.blV.Visible=false; s.brH.Visible=false; s.brV.Visible=false
+end
+local function drawCornerBox(s,left,top,width,height,color,visible)
+if not visible then
+s.tlH.Visible=false; s.tlV.Visible=false; s.trH.Visible=false; s.trV.Visible=false
+s.blH.Visible=false; s.blV.Visible=false; s.brH.Visible=false; s.brV.Visible=false
+return
+end
+local right=left+width; local bottom=top+height
+local corner=math.max(4,math.min(width,height)*0.30)
+setLine(s.tlH,left,top,left+corner,top,color,true)
+setLine(s.tlV,left,top,left,top+corner,color,true)
+setLine(s.trH,right-corner,top,right,top,color,true)
+setLine(s.trV,right,top,right,top+corner,color,true)
+setLine(s.blH,left,bottom,left+corner,bottom,color,true)
+setLine(s.blV,left,bottom-corner,left,bottom,color,true)
+setLine(s.brH,right-corner,bottom,right,bottom,color,true)
+setLine(s.brV,right,bottom-corner,right,bottom,color,true)
 end
 for i=1,ENT_MAX do hideEnt(entSlots[i]) end
 local HAZ_POOL=80
@@ -706,11 +775,11 @@ end
 local hazObjects={}; local hazDrawn=0
 local INV_LINES=120
 local invLines={}
-local invBg=Drawing.new(string.char(83, 113, 117, 97, 114, 101))
+local invBg=HavocESP:TrackDrawing(Drawing.new(string.char(83, 113, 117, 97, 114, 101)))
 invBg.Filled=true; invBg.Color=Color3.fromRGB(0,0,0)
 invBg.Transparency=0.55; invBg.Visible=false
 for i=1,INV_LINES do
-local t=Drawing.new(string.char(84, 101, 120, 116)); t.Font=FONT; t.Size=13
+local t=HavocESP:TrackDrawing(Drawing.new(string.char(84, 101, 120, 116))); t.Font=FONT; t.Size=13
 t.Outline=false; t.Center=false; t.Visible=false
 invLines[i]=t
 end
@@ -1209,17 +1278,50 @@ end)
 end
 hazObjects=out
 end
-task.spawn(function()
-while true do
-task.wait(0.5)
-if CFG.lootEnabled then pcall(rebuildLoot) end
-if CFG.entityEnabled then pcall(rebuildEntities) end
+local refreshAt={entity=0,loot=0,hazard=0}
+local lastRefresh={entity=0,loot=0,hazard=0}
+local function markDirty(kind)
+refreshAt[kind]=tick()
+end
+HavocESP:Connect(workspace.DescendantAdded,function(obj)
+if obj:IsA(string.char(77, 111, 100, 101, 108)) or obj:IsA(string.char(72, 117, 109, 97, 110, 111, 105, 100)) then markDirty(string.char(101, 110, 116, 105, 116, 121)) end
+if obj:IsA(string.char(66, 97, 115, 101, 80, 97, 114, 116)) then
+markDirty(string.char(108, 111, 111, 116))
+markDirty(string.char(104, 97, 122, 97, 114, 100))
 end
 end)
-task.spawn(function()
-while true do task.wait(2); pcall(rebuildHazards) end
+HavocESP:Connect(workspace.DescendantRemoving,function(obj)
+if obj:IsA(string.char(77, 111, 100, 101, 108)) or obj:IsA(string.char(72, 117, 109, 97, 110, 111, 105, 100)) then markDirty(string.char(101, 110, 116, 105, 116, 121)) end
+if obj:IsA(string.char(66, 97, 115, 101, 80, 97, 114, 116)) then
+markDirty(string.char(108, 111, 111, 116))
+markDirty(string.char(104, 97, 122, 97, 114, 100))
+end
 end)
-RunService.Heartbeat:Connect(function()
+HavocESP:Connect(Players.PlayerAdded,function(player)
+markDirty(string.char(101, 110, 116, 105, 116, 121))
+HavocESP:Connect(player.CharacterAdded,function() markDirty(string.char(101, 110, 116, 105, 116, 121)) end)
+HavocESP:Connect(player.CharacterRemoving,function() markDirty(string.char(101, 110, 116, 105, 116, 121)) end)
+end)
+HavocESP:Connect(Players.PlayerRemoving,function() markDirty(string.char(101, 110, 116, 105, 116, 121)) end)
+task.spawn(function()
+while HavocESP.alive do
+local now=tick()
+if CFG.entityEnabled and ((refreshAt.entity>0 and now-refreshAt.entity>=0.15) or now-lastRefresh.entity>=1) then
+pcall(rebuildEntities)
+refreshAt.entity=0; lastRefresh.entity=now
+end
+if CFG.lootEnabled and ((refreshAt.loot>0 and now-refreshAt.loot>=0.20) or now-lastRefresh.loot>=1.5) then
+pcall(rebuildLoot)
+refreshAt.loot=0; lastRefresh.loot=now
+end
+if (CFG.sentryEnabled or CFG.corpseEnabled or CFG.sliderEnabled) and ((refreshAt.hazard>0 and now-refreshAt.hazard>=0.25) or now-lastRefresh.hazard>=3) then
+pcall(rebuildHazards)
+refreshAt.hazard=0; lastRefresh.hazard=now
+end
+task.wait(0.1)
+end
+end)
+HavocESP:Connect(RunService.Heartbeat, function()
 pcall(doAimbot)
 end)
 local V3_UP=Vector3.new(0,2.8,0)
@@ -1228,14 +1330,26 @@ local function hpColor(r)
 r=clamp(r,0,1)
 return Color3.fromRGB(floor(255*(1-r)),floor(220*r),40)
 end
-RunService.RenderStepped:Connect(function()
-if RECOIL.enabled and RECOIL.cache then
-pcall(applygc,RECOIL.cache,RECOIL.payload)
+local recoilLast = 0
+HavocESP:Connect(RunService.RenderStepped, function(dt)
+Camera = workspace.CurrentCamera or Camera
+if not Camera then return end
+if RECOIL.enabled and RECOIL.cache and tick() - recoilLast >= 0.1 then
+recoilLast = tick()
+pcall(applygc, RECOIL.cache, RECOIL.payload)
 end
 local lp=Players.LocalPlayer
 local char=lp and lp.Character
 local hrp=char and char:FindFirstChild(string.char(72, 117, 109, 97, 110, 111, 105, 100, 82, 111, 111, 116, 80, 97, 114, 116))
 local myPos=hrp and hrp.Position
+if CFG.showStatus then
+local fps=dt>0 and floor(1/dt+0.5) or 0
+statusText.Text=string.char(72, 65, 86, 79, 67, 32, 118, 52, 32, 32, 124, 32, 32)..fps..string.char(32, 70, 80, 83, 32, 32, 124, 32, 32)..#entObjects..string.char(32, 101, 110, 116, 105, 116, 105, 101, 115, 32, 32, 124, 32, 32)..#lootObjects..string.char(32, 108, 111, 111, 116, 32, 32, 124, 32, 32)..#hazObjects..string.char(32, 104, 97, 122, 97, 114, 100, 115)
+statusText.Position=Vector2.new(12,12)
+statusText.Visible=true
+else
+statusText.Visible=false
+end
 local drawn=0
 if CFG.lootEnabled and myPos then
 for _,e in ipairs(lootObjects) do
@@ -1244,8 +1358,8 @@ local part=e.part
 if part and part.Parent then
 local sc,on=WorldToScreen(part.Position)
 if on then
+if drawn < LOOT_POOL then
 drawn=drawn+1
-if drawn<=LOOT_POOL then
 local rp=part.Position
 local dx=rp.X-myPos.X; local dy=rp.Y-myPos.Y; local dz=rp.Z-myPos.Z
 local dist=floor(sqrt(dx*dx+dy*dy+dz*dz))
@@ -1290,6 +1404,10 @@ local dist=floor(sqrt(dx2*dx2+dy2*dy2+dz2*dz2))
 local col=e.color
 local hx=headSc.X; local hy=headSc.Y
 local boxH=footOn and math.max(math.abs(footSc.Y-hy),10) or 60
+local boxW=boxH*0.50
+local boxLeft=hx-boxW*0.5
+local boxColor=isBoss(e.label) and Color3.fromRGB(255,200,0) or col
+drawCornerBox(s,boxLeft,hy,boxW,boxH,boxColor,CFG.showCornerBox and footOn)
 if CFG.showName then
 local prefix, nameCol
 if e.isPlayer then
@@ -1301,29 +1419,30 @@ prefix=string.char(91, 78, 80, 67, 93, 32); nameCol=col
 end
 s.name.Text=prefix..e.label
 s.name.Color=nameCol
-s.name.Position=Vector2.new(hx,hy-28)
+s.name.Position=Vector2.new(hx,hy-30)
 s.name.Visible=true
 else s.name.Visible=false end
 if CFG.showDist then
-s.dist.Text=dist..string.char(109)
+s.dist.Text=string.char(91)..dist..string.char(109, 93)
 s.dist.Color=Color3.fromRGB(210,210,210)
 s.dist.Position=Vector2.new(hx,hy-14)
 s.dist.Visible=true
 else s.dist.Visible=false end
 if CFG.showHealth and footOn then
-local barX=hx-boxH*0.25-8
+local barX=boxLeft-7
 s.hpBg.From=Vector2.new(barX,hy); s.hpBg.To=Vector2.new(barX,hy+boxH); s.hpBg.Visible=true
 local fillBot=hy+boxH*(1-hRatio)
 s.hpFg.Color=hCol; s.hpFg.From=Vector2.new(barX,hy+boxH); s.hpFg.To=Vector2.new(barX,fillBot); s.hpFg.Visible=true
-s.hpTxt.Text=floor(hp)..string.char(104, 112); s.hpTxt.Color=hCol
-s.hpTxt.Position=Vector2.new(hx,hy+boxH+4); s.hpTxt.Visible=true
+s.hpTxt.Text=floor(hp)..string.char(32, 72, 80); s.hpTxt.Color=hCol
+s.hpTxt.Position=Vector2.new(hx,hy+boxH+5); s.hpTxt.Visible=true
 else s.hpBg.Visible=false; s.hpFg.Visible=false; s.hpTxt.Visible=false end
 if CFG.showWeapon and footOn then
 local tool=e.char and e.char:FindFirstChildOfClass(string.char(84, 111, 111, 108))
 local wname=tool and tool.Name
 if wname then
-s.weapon.Text=string.char(91)..wname..string.char(93); s.weapon.Color=Color3.fromRGB(220,220,80)
-s.weapon.Position=Vector2.new(hx,hy+boxH+16); s.weapon.Visible=true
+if #wname>24 then wname=wname:sub(1,21)..string.char(46, 46, 46) end
+s.weapon.Text=string.char(60, 32)..wname..string.char(32, 62); s.weapon.Color=Color3.fromRGB(255,220,100)
+s.weapon.Position=Vector2.new(hx,hy+boxH+18); s.weapon.Visible=true
 else s.weapon.Visible=false end
 else s.weapon.Visible=false end
 end
@@ -1341,8 +1460,8 @@ local part=e.part
 if part and part.Parent then
 local sc,on=WorldToScreen(part.Position)
 if on then
+if hDrawn < HAZ_POOL then
 hDrawn=hDrawn+1
-if hDrawn<=HAZ_POOL then
 local rp=part.Position
 local dx=rp.X-myPos.X; local dy=rp.Y-myPos.Y; local dz=rp.Z-myPos.Z
 local dist=floor(sqrt(dx*dx+dy*dy+dz*dz))
