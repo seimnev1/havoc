@@ -12,7 +12,8 @@ end
 return connection
 end
 function HavocESP:TrackDrawing(drawing)
-
+self.drawings[#self.drawings + 1] = drawing
+return drawing
 end
 function HavocESP:Destroy()
 self.alive = false
